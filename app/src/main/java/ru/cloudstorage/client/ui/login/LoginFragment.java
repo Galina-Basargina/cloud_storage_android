@@ -50,6 +50,6 @@ public class LoginFragment extends Fragment {
         String password = binding.editPassword.getText().toString();
         Log.d("!!!",user + " " + password);
 
-        SimpleService.foo();
+        SimpleService.voo();
     }
 }
