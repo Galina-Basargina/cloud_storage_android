@@ -6,14 +6,20 @@ import androidx.lifecycle.ViewModel;
 
 public class LoginViewModel extends ViewModel {
 
-    private final MutableLiveData<String> mText;
+    private final MutableLiveData<String> mTitle;
+    private final MutableLiveData<String> mEnter;
 
     public LoginViewModel() {
-        mText = new MutableLiveData<>();
-        mText.setValue("This is home fragment");
+        mTitle = new MutableLiveData<>();
+        mTitle.setValue("Вход в систему");
+        mEnter = new MutableLiveData<>();
+        mEnter.setValue("Войти");
     }
 
-    public LiveData<String> getText() {
-        return mText;
+    public LiveData<String> getTitle() {
+        return mTitle;
+    }
+    public LiveData<String> getEnter() {
+        return mEnter;
     }
 }
