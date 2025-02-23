@@ -16,6 +16,7 @@ import java.io.IOException;
 
 import ru.cloudstorage.client.SimpleService;
 import ru.cloudstorage.client.databinding.FragmentLoginBinding;
+import ru.cloudstorage.client.db.DatabasePreferences;
 
 public class LoginFragment extends Fragment {
 
@@ -31,6 +32,11 @@ public class LoginFragment extends Fragment {
 
         final TextView textTitle = binding.textTitle;
         loginViewModel.getTitle().observe(getViewLifecycleOwner(), textTitle::setText);
+
+        final TextView editLogin = binding.editLogin;
+        final String login = DatabasePreferences.getInstance().getLogin();
+        if (login != null)
+            editLogin.setText(login);
 
         final Button btnLogin = binding.btnLogin;
         loginViewModel.getEnter().observe(getViewLifecycleOwner(), btnLogin::setText);
@@ -49,6 +55,8 @@ public class LoginFragment extends Fragment {
         String user = binding.editLogin.getText().toString();
         String password = binding.editPassword.getText().toString();
         Log.d("!!!",user + " " + password);
+
+        DatabasePreferences.getInstance().setLogin(user);
 
         SimpleService.voo();
     }
