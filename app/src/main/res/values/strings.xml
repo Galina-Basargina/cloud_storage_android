@@ -11,5 +11,8 @@
     <string name="menu_storage">Хранилище</string>
     <string name="menu_share">Общий доступ</string>
 
+    <string name="button_login">Войти</string>
+    <string name="button_logout">Выйти</string>
+
     <string name="error_unauthorized">Вход не удался. Проверьте логин, пароль</string>
 </resources>

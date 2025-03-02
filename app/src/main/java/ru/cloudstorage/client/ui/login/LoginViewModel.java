@@ -16,7 +16,7 @@ public class LoginViewModel extends ViewModel {
         title = new MutableLiveData<>();
         title.setValue("Вход в систему");
         enter = new MutableLiveData<>();
-        enter.setValue("Войти");
+        enter.setValue(null);
         error = new MutableLiveData<>();
         error.setValue(null);
     }
@@ -32,5 +32,11 @@ public class LoginViewModel extends ViewModel {
     }
     public void notifyError(String error) {
         this.error.setValue(error);
+    }
+    public void setEnter(String enter) {
+        this.enter.setValue(enter);
+    }
+    public void resetError() {
+        this.error.setValue(null);
     }
 }

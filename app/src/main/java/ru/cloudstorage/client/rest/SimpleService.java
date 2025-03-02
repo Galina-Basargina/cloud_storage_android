@@ -38,7 +38,7 @@ public final class SimpleService {
         void logout();
     }
 
-    public static void login(LoginCallback errorCallback) {
+    public static void login(LoginCallback errorCallback, String login, String password) {
         // Создаем простой REST адаптер, с помощью которого отправим запрос
         Retrofit retrofit =
             new Retrofit.Builder()
@@ -49,8 +49,8 @@ public final class SimpleService {
         CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
         // Создаем параметры запроса, которые будут отправлены как json
         JsonObject paramObject = new JsonObject();
-        paramObject.addProperty("login", "galina");
-        paramObject.addProperty("password", "????????");
+        paramObject.addProperty("login", login);
+        paramObject.addProperty("password", password);
         // Готовим метод к вызову
         Call<Auth> call = cloud_storage.login(paramObject);
         // Ждем ответ

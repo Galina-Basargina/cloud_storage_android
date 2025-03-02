@@ -4,6 +4,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Button;
 import android.util.Log;
@@ -32,7 +33,7 @@ public class LoginFragment extends Fragment implements LoginCallback {
         final TextView textTitle = binding.textTitle;
         loginViewModel.getTitle().observe(getViewLifecycleOwner(), textTitle::setText);
         // ---
-        final TextView editLogin = binding.editLogin;
+        final EditText editLogin = binding.editLogin;
         // ---
         final Button btnLogin = binding.btnLogin;
         loginViewModel.getEnter().observe(getViewLifecycleOwner(), btnLogin::setText);
@@ -44,8 +45,12 @@ public class LoginFragment extends Fragment implements LoginCallback {
         final String login = DatabasePreferences.getInstance().getLogin();
         if (login != null)
             editLogin.setText(login);
-        // ---
-        btnLogin.setOnClickListener(this::onLogin);
+
+        // Включение режима входа
+        if (DatabasePreferences.getInstance().getToken() == null)
+            enableLogin();
+        else
+            disableLogin();
 
         return root;
     }
@@ -56,31 +61,74 @@ public class LoginFragment extends Fragment implements LoginCallback {
         binding = null;
     }
 
-    public void onLogin(View view) {
+    private void onLogin(View view) {
+        loginViewModel.resetError();
+
         String user = binding.editLogin.getText().toString();
         String password = binding.editPassword.getText().toString();
-        Log.d("!!!",user + " " + password);
 
         DatabasePreferences.getInstance().setLogin(user);
 
-        SimpleService.login(this);
+        SimpleService.login(this, user, password);
+    }
+
+    private void onLogout(View view) {
+        loginViewModel.resetError();
+        enableLogin();
+
+        DatabasePreferences.getInstance().resetToken();
+
+        //SimpleService.logout();
     }
 
     @Override
     public void authError(boolean resetToken) {
-        this.loginViewModel.notifyError(getResources().getString(R.string.error_unauthorized));
+        loginViewModel.notifyError(getResources().getString(R.string.error_unauthorized));
         if (resetToken)
             DatabasePreferences.getInstance().resetToken();
+        enableLogin();
     }
 
     @Override
     public void networkError(String error) {
         this.loginViewModel.notifyError(error);
+        enableLogin();
     }
 
     @Override
     public void onSuccess(String token) {
         Log.d("!!!", token);
         DatabasePreferences.getInstance().setToken(token);
+        disableLogin();
+    }
+
+    private void disableEditText(EditText editText) {
+        //editText.setFocusable(false);
+        editText.setEnabled(false);
+        //editText.setCursorVisible(false);
+        //editText.setKeyListener(null);
+        //editText.setBackgroundColor(Color.TRANSPARENT);
+    }
+
+    private void enableEditText(EditText editText) {
+        //editText.setFocusable(true);
+        editText.setEnabled(true);
+        //editText.setCursorVisible(true);
+        //editText.setKeyListener(null);
+        //editText.setBackgroundColor(Color.TRANSPARENT);
+    }
+
+    private void enableLogin() {
+        binding.btnLogin.setOnClickListener(this::onLogin);
+        enableEditText(binding.editLogin);
+        enableEditText(binding.editPassword);
+        loginViewModel.setEnter(getResources().getString(R.string.button_login));
+    }
+
+    private void disableLogin() {
+        binding.btnLogin.setOnClickListener(this::onLogout);
+        disableEditText(binding.editLogin);
+        disableEditText(binding.editPassword);
+        loginViewModel.setEnter(getResources().getString(R.string.button_logout));
     }
 }
