@@ -17,9 +17,9 @@ import ru.cloudstorage.client.db.DatabasePreferences;
 import ru.cloudstorage.client.ui.login.LoginCallback;
 
 public final class SimpleService {
-    public static final String CLOUD_STORAGE_URL = "http://336707.simplecloud.ru";
+    private static final String CLOUD_STORAGE_URL = "http://336707.simplecloud.ru";
 
-    public static class Auth {
+    private static class Auth {
         private String token;
         public String getToken() {
             return this.token;
@@ -29,13 +29,15 @@ public final class SimpleService {
         }
     }
 
+    private static class Logoff {}
+
     public interface CloudStorage {
         @Headers("Content-Type: application/json")
         @POST("/auth/login")
         Call<Auth> login(@Body JsonObject body);
 
         @GET("/auth/logout")
-        void logout();
+        Call<Logoff> logout();
     }
 
     public static void login(LoginCallback errorCallback, String login, String password) {
@@ -80,8 +82,34 @@ public final class SimpleService {
             @Override
             public void onFailure(Call<Auth> call, Throwable t) {
                 // Происходит в случае сетевых ошибок
-                Log.d("!!!", "onFailure Auth " + t.toString());
                 errorCallback.networkError(t.toString()); // token НЕ удалится
+            }
+        });
+    }
+
+    public static void logout() {
+        // Создаем простой REST адаптер, с помощью которого отправим запрос
+        Retrofit retrofit =
+            new Retrofit.Builder()
+                .baseUrl(CLOUD_STORAGE_URL)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
+        // Создаем экземпляр интерфейса работы с сервером
+        CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
+
+        // Готовим метод к вызову
+        Call<Logoff> call = cloud_storage.logout();
+        // Ждем ответ
+        // В случае успеха приходит токен - надо его сохранить
+        // В случае провала - надо удалить сохраненный токен
+        call.enqueue(new Callback<Logoff>() {
+            @Override
+            public void onResponse(Call<Logoff> call, Response<Logoff> response) {
+            }
+
+            @Override
+            public void onFailure(Call<Logoff> call, Throwable t) {
+                // Происходит в случае сетевых ошибок
             }
         });
     }

@@ -78,7 +78,7 @@ public class LoginFragment extends Fragment implements LoginCallback {
 
         DatabasePreferences.getInstance().resetToken();
 
-        //SimpleService.logout();
+        SimpleService.logout();
     }
 
     @Override
