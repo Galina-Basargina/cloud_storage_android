@@ -75,4 +75,15 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         );
         db.close();
     }
+
+    public void resetSettings(String key) {
+        SQLiteDatabase db = this.getWritableDatabase();
+
+        // DELETE FROM settings WHERE key = ?;
+        db.delete(
+            TABLE_SETTINGS,
+            COLUMN_KEY + " = ?",
+            new String[] {key}
+        );
+    }
 }

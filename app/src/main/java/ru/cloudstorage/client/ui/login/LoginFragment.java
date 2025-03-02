@@ -12,34 +12,39 @@ import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 
-import java.io.IOException;
-
-import ru.cloudstorage.client.SimpleService;
+import ru.cloudstorage.client.R;
+import ru.cloudstorage.client.rest.SimpleService;
 import ru.cloudstorage.client.databinding.FragmentLoginBinding;
 import ru.cloudstorage.client.db.DatabasePreferences;
 
-public class LoginFragment extends Fragment {
-
+public class LoginFragment extends Fragment implements LoginCallback {
+    private LoginViewModel loginViewModel;
     private FragmentLoginBinding binding;
 
     public View onCreateView(@NonNull LayoutInflater inflater,
                              ViewGroup container, Bundle savedInstanceState) {
-        LoginViewModel loginViewModel =
-                new ViewModelProvider(this).get(LoginViewModel.class);
+        this.loginViewModel = new ViewModelProvider(this).get(LoginViewModel.class);
 
         binding = FragmentLoginBinding.inflate(inflater, container, false);
         View root = binding.getRoot();
 
+        // Подключение модели к view
         final TextView textTitle = binding.textTitle;
         loginViewModel.getTitle().observe(getViewLifecycleOwner(), textTitle::setText);
-
+        // ---
         final TextView editLogin = binding.editLogin;
+        // ---
+        final Button btnLogin = binding.btnLogin;
+        loginViewModel.getEnter().observe(getViewLifecycleOwner(), btnLogin::setText);
+        // ---
+        final TextView textError = binding.textError;
+        loginViewModel.getError().observe(getViewLifecycleOwner(), textError::setText);
+
+        // Настройка компонентов
         final String login = DatabasePreferences.getInstance().getLogin();
         if (login != null)
             editLogin.setText(login);
-
-        final Button btnLogin = binding.btnLogin;
-        loginViewModel.getEnter().observe(getViewLifecycleOwner(), btnLogin::setText);
+        // ---
         btnLogin.setOnClickListener(this::onLogin);
 
         return root;
@@ -58,6 +63,24 @@ public class LoginFragment extends Fragment {
 
         DatabasePreferences.getInstance().setLogin(user);
 
-        SimpleService.voo();
+        SimpleService.login(this);
+    }
+
+    @Override
+    public void authError(boolean resetToken) {
+        this.loginViewModel.notifyError(getResources().getString(R.string.error_unauthorized));
+        if (resetToken)
+            DatabasePreferences.getInstance().resetToken();
+    }
+
+    @Override
+    public void networkError(String error) {
+        this.loginViewModel.notifyError(error);
+    }
+
+    @Override
+    public void onSuccess(String token) {
+        Log.d("!!!", token);
+        DatabasePreferences.getInstance().setToken(token);
     }
 }

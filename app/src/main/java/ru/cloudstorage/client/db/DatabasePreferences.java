@@ -39,6 +39,13 @@ public class DatabasePreferences {
         db.close();
     }
 
+    public void resetToken() {
+        this.token = null;
+        DatabaseHelper db = new DatabaseHelper(this.context);
+        db.resetSettings("token");
+        db.close();
+    }
+
     // https://en.wikipedia.org/wiki/Singleton_pattern#Lazy_initialization
     private static volatile DatabasePreferences instance = null;
     private DatabasePreferences() {}
