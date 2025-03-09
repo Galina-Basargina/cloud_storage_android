@@ -11,19 +11,29 @@ import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
 import androidx.lifecycle.ViewModelProvider;
 
 import ru.cloudstorage.client.R;
 import ru.cloudstorage.client.rest.SimpleService;
 import ru.cloudstorage.client.databinding.FragmentLoginBinding;
 import ru.cloudstorage.client.db.DatabasePreferences;
+import ru.cloudstorage.client.ui.storage.StorageFragment;
 
 public class LoginFragment extends Fragment implements LoginCallback {
     private LoginViewModel loginViewModel;
     private FragmentLoginBinding binding;
+    private ViewGroup container;
 
     public View onCreateView(@NonNull LayoutInflater inflater,
                              ViewGroup container, Bundle savedInstanceState) {
+        Log.d("!!!1", this.toString());
+        Log.d("!!!1", this.getTag());
+
+        this.container = container;
+        Log.d("!!!1", this.container.toString());
+
         this.loginViewModel = new ViewModelProvider(this).get(LoginViewModel.class);
 
         binding = FragmentLoginBinding.inflate(inflater, container, false);
@@ -100,6 +110,37 @@ public class LoginFragment extends Fragment implements LoginCallback {
         Log.d("!!!", token);
         DatabasePreferences.getInstance().setToken(token);
         disableLogin();
+
+        Fragment fragment = getFragmentManager().findFragmentById(this.getId());
+        FragmentManager fragmentManager = getActivity().getSupportFragmentManager();
+        fragmentManager.beginTransaction()
+                //.replace(((ViewGroup)getView().getParent()).getId(), StorageFragment.class, null)
+                .replace(this.container.getId(), StorageFragment.class, null)
+                .setReorderingAllowed(true)
+                .addToBackStack(null) // Name can be null
+                .commit();
+
+
+//        FragmentManager manager = getActivity().getSupportFragmentManager();
+//        manager.popBackStack(R.id.nav_storage, FragmentManager.POP_BACK_STACK_INCLUSIVE);
+        //Fragment fragment = manager.findFragmentById(R.id.nav_storage); // new StorageFragment();
+//        Fragment fragment = new StorageFragment();
+//        FragmentTransaction transaction = manager.beginTransaction();
+//        transaction.replace(R.id.nav_host_fragment_content_main, fragment);
+//        transaction.commit();
+
+//        Fragment fragment = getFragmentManager().findFragmentById(this.getId());
+////        Fragment fragment2 = fragment.getParentFragmentManager().getFragments().get(1);
+//        Log.d("!!!", fragment.toString());
+//        Log.d("!!!", fragment.getTag());
+////        Log.d("!!!", fragment2.toString());
+////        Log.d("!!!", fragment2.getTag());
+////        Log.d("!!!", String.valueOf(fragment2.getParentFragment().getId()));
+//
+////        final FragmentTransaction ft = getFragmentManager().beginTransaction();
+////        ft.show()
+////        replace(fragment.getParentFragment().getId(), new StorageFragment());
+////        ft.commit();
     }
 
     private void disableEditText(EditText editText) {
