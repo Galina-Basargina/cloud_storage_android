@@ -16,11 +16,17 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
+import ru.cloudstorage.client.R;
 import ru.cloudstorage.client.databinding.FragmentStorageBinding;
+import ru.cloudstorage.client.db.DatabasePreferences;
+import ru.cloudstorage.client.rest.SimpleService;
+import ru.cloudstorage.client.rest.cloudstorage.Storage;
+import ru.cloudstorage.client.rest.cloudstorage.User;
 
-public class StorageFragment extends Fragment
-        implements View.OnTouchListener,
-                   SwipeRefreshLayout.OnRefreshListener {
+public class StorageFragment extends Fragment implements
+        View.OnTouchListener,
+        SwipeRefreshLayout.OnRefreshListener,
+        StorageCallback {
     private ViewGroup container;
     StorageViewModel storageViewModel;
     private FragmentStorageBinding binding;
@@ -104,9 +110,49 @@ public class StorageFragment extends Fragment
     @Override
     public void onRefresh() {
         //new Handler().postDelayed(() -> {
+            SimpleService.getStorageData(this);
             storageViewModel.setDataAt(1, "Item " + System.currentTimeMillis());
             adapter.notifyDataSetChanged();
             swipeRefreshLayout.setRefreshing(false);
         //}, 1000);
+    }
+
+    @Override
+    public String getToken() {
+        return DatabasePreferences.getInstance().getToken();
+    }
+
+    @Override
+    public User getUser() {
+        return storageViewModel.getStorage().getValue().getUser();
+    }
+
+    @Override
+    public void onAuthError(boolean resetToken) {
+        storageViewModel.setDataAt(0, getResources().getString(R.string.error_unauthorized));
+        if (resetToken)
+            DatabasePreferences.getInstance().resetToken();
+        //TODO: enableLogin();
+    }
+
+    @Override
+    public void onNetworkError(String error) {
+        storageViewModel.setDataAt(0, error);
+        //TODO: enableLogin();
+    }
+
+    @Override
+    public void onLoadStorageFailure() {
+        // любая ошибка, кроме authError и networkError
+        // По сути, это ошибки программиста (изменился интерфейс запросов или ответов)
+        storageViewModel.setDataAt(0, "onLoadStorageFailure");
+    }
+
+    @Override
+    public void onLoadStorageSuccess(Storage storage) {
+        storageViewModel.setDataAt(0, "onLoadStorageSuccess");
+        // Старая версия storage затирается на новую версию storage
+        // Автоматически будут обновлены все данные с помощью observer
+        storageViewModel.setStorage(storage);
     }
 }

@@ -9,8 +9,11 @@ import androidx.lifecycle.ViewModel;
 import java.util.ArrayList;
 import java.util.List;
 
+import ru.cloudstorage.client.rest.cloudstorage.Storage;
+
 public class StorageViewModel extends ViewModel {
     private MutableLiveData<List<String>> data;
+    private MutableLiveData<Storage> storage;
 
     public StorageViewModel() {
         Log.d("!!!4", this.toString());
@@ -22,6 +25,9 @@ public class StorageViewModel extends ViewModel {
         for (int i = 1; i <= 20; i++) {
             data.getValue().add("Item " + i);
         }
+
+        storage = new MutableLiveData<>();
+        storage.setValue(new Storage());
     }
 
     public LiveData<List<String>> getData() {
@@ -35,5 +41,12 @@ public class StorageViewModel extends ViewModel {
     }
     public void removeDataAt(int position) {
         data.getValue().remove(position);
+    }
+
+    public LiveData<Storage> getStorage() {
+        return storage;
+    }
+    public void setStorage(Storage storage) {
+        this.storage.setValue(storage);
     }
 }
