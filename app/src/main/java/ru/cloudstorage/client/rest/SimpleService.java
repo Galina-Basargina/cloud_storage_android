@@ -1,7 +1,5 @@
 package ru.cloudstorage.client.rest;
 
-import android.util.Log;
-
 import com.google.gson.JsonObject;
 
 import retrofit2.Call;
@@ -13,7 +11,6 @@ import retrofit2.http.Body;
 import retrofit2.http.GET;
 import retrofit2.http.Headers;
 import retrofit2.http.POST;
-import ru.cloudstorage.client.db.DatabasePreferences;
 import ru.cloudstorage.client.ui.login.LoginCallback;
 
 public final class SimpleService {
