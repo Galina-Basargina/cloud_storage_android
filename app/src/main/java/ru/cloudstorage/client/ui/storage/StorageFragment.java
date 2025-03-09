@@ -112,8 +112,9 @@ public class StorageFragment extends Fragment implements
         //new Handler().postDelayed(() -> {
             SimpleService.getStorageData(this);
             storageViewModel.setDataAt(1, "Item " + System.currentTimeMillis());
-            adapter.notifyDataSetChanged();
-            swipeRefreshLayout.setRefreshing(false);
+            // Далее будет работать ассинхронный метод getStorageData
+            // Его работа завершается вызовом методов StorageCallback, поэтому именно там
+            // будет обновляться набор данных адаптера и останавливаться иконка "крутилки"
         //}, 1000);
     }
 
@@ -133,12 +134,16 @@ public class StorageFragment extends Fragment implements
         if (resetToken)
             DatabasePreferences.getInstance().resetToken();
         //TODO: enableLogin();
+        adapter.notifyDataSetChanged();
+        swipeRefreshLayout.setRefreshing(false);
     }
 
     @Override
     public void onNetworkError(String error) {
         storageViewModel.setDataAt(0, error);
         //TODO: enableLogin();
+        adapter.notifyDataSetChanged();
+        swipeRefreshLayout.setRefreshing(false);
     }
 
     @Override
@@ -146,6 +151,8 @@ public class StorageFragment extends Fragment implements
         // любая ошибка, кроме authError и networkError
         // По сути, это ошибки программиста (изменился интерфейс запросов или ответов)
         storageViewModel.setDataAt(0, "onLoadStorageFailure");
+        adapter.notifyDataSetChanged();
+        swipeRefreshLayout.setRefreshing(false);
     }
 
     @Override
@@ -154,5 +161,7 @@ public class StorageFragment extends Fragment implements
         // Старая версия storage затирается на новую версию storage
         // Автоматически будут обновлены все данные с помощью observer
         storageViewModel.setStorage(storage);
+        adapter.notifyDataSetChanged();
+        swipeRefreshLayout.setRefreshing(false);
     }
 }

@@ -1,12 +1,12 @@
 package ru.cloudstorage.client.rest.cloudstorage;
 
-import java.util.ArrayList;
+import java.util.List;
 
 public class Storage {
     private User user;
     private Folder current_folder;
-    private ArrayList<Folder> folders;
-    private ArrayList<File> files;
+    private List<Folder> folders;
+    private List<File> files;
 
     public User getUser() {
         return user;
@@ -20,17 +20,17 @@ public class Storage {
     public void setCurrentFolder(Folder current_folder) {
         this.current_folder = current_folder;
     }
-    public ArrayList<Folder> getFolders() {
+    public List<Folder> getFolders() {
         return folders;
     }
-    public void setFolders(ArrayList<Folder> folders) {
+    public void setFolders(List<Folder> folders) {
         this.folders = folders;
     }
-    public ArrayList<File> getFiles() {
+    public List<File> getFiles() {
         return files;
     }
 
-    public void setFiles(ArrayList<File> files) {
+    public void setFiles(List<File> files) {
         this.files = files;
     }
 }

@@ -1,12 +1,10 @@
 package ru.cloudstorage.client.rest;
 
-import android.util.Log;
-
 import androidx.annotation.NonNull;
 
 import com.google.gson.JsonObject;
 
-import java.util.ArrayList;
+import java.util.List;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -18,7 +16,9 @@ import retrofit2.http.GET;
 import retrofit2.http.Header;
 import retrofit2.http.Headers;
 import retrofit2.http.POST;
+import retrofit2.http.Path;
 import ru.cloudstorage.client.rest.cloudstorage.Auth;
+import ru.cloudstorage.client.rest.cloudstorage.File;
 import ru.cloudstorage.client.rest.cloudstorage.Folder;
 import ru.cloudstorage.client.rest.cloudstorage.Logoff;
 import ru.cloudstorage.client.rest.cloudstorage.Storage;
@@ -29,7 +29,13 @@ import ru.cloudstorage.client.ui.storage.StorageCallback;
 public final class SimpleService {
     private static final String CLOUD_STORAGE_URL = "http://336707.simplecloud.ru";
 
-    public interface CloudStorage {
+    private static class GetFolders {
+        List<Folder> folders;
+    }
+    private static class GetFiles {
+        List<File> files;
+    }
+    private interface CloudStorage {
         @Headers("Content-Type: application/json")
         @POST("/auth/login")
         Call<Auth> login(@Body JsonObject body);
@@ -39,6 +45,15 @@ public final class SimpleService {
 
         @GET("/users/me")
         Call<User> getUserData(@Header("Authorization") String authHeader);
+
+        @GET("/folders/{id}")
+        Call<Folder> getFolderData(@Path("id") int id, @Header("Authorization") String authHeader);
+
+        @GET("/folders")
+        Call<GetFolders> getFoldersData(@Header("Authorization") String authHeader);
+
+        @GET("/files")
+        Call<GetFiles> getFilesData(@Header("Authorization") String authHeader);
     }
 
     public static void login(LoginCallback callback, String login, String password) {
@@ -115,14 +130,7 @@ public final class SimpleService {
         });
     }
 
-    private static void getUserData(@NonNull StorageCallback callback, UserDataReceiveCallback finish) {
-        // Проверка, что пользователь залогинен
-        String token = callback.getToken();
-        if (token == null) {
-            callback.onAuthError(true); // token удалится
-            return;
-        }
-
+    private static void getUserData(@NonNull StorageCallback callback, String token, UserDataReceiveCallback finish) {
         // Создаем простой REST адаптер, с помощью которого отправим запрос
         Retrofit retrofit =
             new Retrofit.Builder()
@@ -170,40 +178,209 @@ public final class SimpleService {
         });
     }
 
-    private static void getFolders(StorageCallback callback, FoldersDataReceiveCallback finish) {
-        Log.d("!!!5", "getFoldersAndFiles");
-        finish.onLoadFinished(new ArrayList<>());
+    private static void getFolder(StorageCallback callback, String token, int folderId, FolderDataReceiveCallback finish) {
+        // Создаем простой REST адаптер, с помощью которого отправим запрос
+        Retrofit retrofit =
+            new Retrofit.Builder()
+                .baseUrl(CLOUD_STORAGE_URL)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
+        // Создаем экземпляр интерфейса работы с сервером
+        CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
+        // Готовим метод к вызову
+        Call<Folder> call = cloud_storage.getFolderData(folderId, "Bearer "+token);
+        // Ждем ответ
+        // В случае успеха приходят данные залогиненного пользователя - надо их сохранить
+        // В случае провала - надо удалить сохраненный токен
+        call.enqueue(new Callback<Folder>() {
+            @Override
+            public void onResponse(Call<Folder> call, Response<Folder> response) {
+                if (!response.isSuccessful()) {
+                    if (response.code() == 401)
+                        callback.onAuthError(true); // token удалится
+                    else if (response.code() == 404)
+                        callback.onLoadStorageFailure(); // token НЕ удалится
+                    else
+                        callback.onLoadStorageFailure(); // все остальные случаи
+                }
+                else {
+                    Folder folder = response.body();
+                    if (folder != null)
+                        if (folder.getOwner() != null) {
+                            // Здесь окажемся, если загрузка успешна
+                            folder.setId(folderId);
+                            finish.onLoadFinished(folder);
+                            return;
+                        }
+                    // Здесь программа окажется если загрузка данных не удалась
+                    callback.onLoadStorageFailure(); // token НЕ удалится
+                }
+                finish.onLoadFinished(null);
+            }
+
+            @Override
+            public void onFailure(Call<Folder> call, Throwable t) {
+                // Происходит в случае сетевых ошибок
+                callback.onNetworkError(t.toString()); // token НЕ удалится
+                finish.onLoadFinished(null);
+            }
+        });
+    }
+
+    private static void getFolders(StorageCallback callback, String token, FoldersDataReceiveCallback finish) {
+        // Создаем простой REST адаптер, с помощью которого отправим запрос
+        Retrofit retrofit =
+            new Retrofit.Builder()
+                .baseUrl(CLOUD_STORAGE_URL)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
+        // Создаем экземпляр интерфейса работы с сервером
+        CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
+        // Готовим метод к вызову
+        Call<GetFolders> call = cloud_storage.getFoldersData("Bearer "+token);
+        // Ждем ответ
+        // В случае успеха приходят данные залогиненного пользователя - надо их сохранить
+        // В случае провала - надо удалить сохраненный токен
+        call.enqueue(new Callback<GetFolders>() {
+            @Override
+            public void onResponse(Call<GetFolders> call, Response<GetFolders> response) {
+                if (!response.isSuccessful()) {
+                    if (response.code() == 401)
+                        callback.onAuthError(true); // token удалится
+                    else if (response.code() == 405)
+                        callback.onLoadStorageFailure(); // token НЕ удалится
+                    else
+                        callback.onLoadStorageFailure(); // все остальные случаи
+                }
+                else {
+                    GetFolders folders = response.body();
+                    if (folders != null && folders.folders != null)
+                        if (!folders.folders.isEmpty()) {
+                            // Здесь окажемся, если загрузка успешна
+                            finish.onLoadFinished(folders.folders);
+                            return;
+                        }
+                    // Здесь программа окажется если загрузка данных не удалась
+                    callback.onLoadStorageFailure(); // token НЕ удалится
+                }
+                finish.onLoadFinished(null);
+            }
+
+            @Override
+            public void onFailure(Call<GetFolders> call, Throwable t) {
+                // Происходит в случае сетевых ошибок
+                callback.onNetworkError(t.toString()); // token НЕ удалится
+                finish.onLoadFinished(null);
+            }
+        });
+    }
+
+    private static void getFiles(StorageCallback callback, String token, FilesDataReceiveCallback finish) {
+        // Создаем простой REST адаптер, с помощью которого отправим запрос
+        Retrofit retrofit =
+            new Retrofit.Builder()
+                .baseUrl(CLOUD_STORAGE_URL)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
+        // Создаем экземпляр интерфейса работы с сервером
+        CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
+        // Готовим метод к вызову
+        Call<GetFiles> call = cloud_storage.getFilesData("Bearer "+token);
+        // Ждем ответ
+        // В случае успеха приходят данные залогиненного пользователя - надо их сохранить
+        // В случае провала - надо удалить сохраненный токен
+        call.enqueue(new Callback<GetFiles>() {
+            @Override
+            public void onResponse(Call<GetFiles> call, Response<GetFiles> response) {
+                if (!response.isSuccessful()) {
+                    if (response.code() == 401)
+                        callback.onAuthError(true); // token удалится
+                    else
+                        callback.onLoadStorageFailure(); // все остальные случаи
+                }
+                else {
+                    GetFiles files = response.body();
+                    if (files != null && files.files != null)
+                        if (!files.files.isEmpty()) {
+                            // Здесь окажемся, если загрузка успешна
+                            finish.onLoadFinished(files.files);
+                            return;
+                        }
+                    // Здесь программа окажется если загрузка данных не удалась
+                    callback.onLoadStorageFailure(); // token НЕ удалится
+                }
+                finish.onLoadFinished(null);
+            }
+
+            @Override
+            public void onFailure(Call<GetFiles> call, Throwable t) {
+                // Происходит в случае сетевых ошибок
+                callback.onNetworkError(t.toString()); // token НЕ удалится
+                finish.onLoadFinished(null);
+            }
+        });
     }
 
     private interface UserDataReceiveCallback {
         void onLoadFinished(User user);
     }
 
+    private interface FolderDataReceiveCallback {
+        void onLoadFinished(Folder folder);
+    }
+
     private interface FoldersDataReceiveCallback {
-        void onLoadFinished(ArrayList<Folder> folders);
+        void onLoadFinished(List<Folder> folders);
+    }
+
+    private interface FilesDataReceiveCallback {
+        void onLoadFinished(List<File> files);
     }
 
     public static void getStorageData(@NonNull StorageCallback callback) {
+        // Проверка, что пользователь залогинен
+        final String token = callback.getToken();
+        if (token == null) {
+            callback.onAuthError(true); // token удалится
+            return;
+        }
+
         Storage model = new Storage();
         final User user = callback.getUser();
 
         if (user == null || user.getRootFolder() == null) {
-            getUserData(callback, (u) -> {
+            getUserData(callback, token, (u) -> {
                 if (u == null) return;
                 model.setUser(u);
-                getFolders(callback, (f) -> {
+                getFolder(callback, token, u.getRootFolder(), (f) -> {
                     if (f == null) return;
-                    model.setFolders(f);
-                    callback.onLoadStorageSuccess(model);
+                    model.setCurrentFolder(f);
+                    getFolders(callback, token, (fols) -> {
+                        if (fols == null) return;
+                        model.setFolders(fols);
+                        getFiles(callback, token, (fils) -> {
+                            if (fils == null) return;
+                            model.setFiles(fils);
+                            callback.onLoadStorageSuccess(model);
+                        });
+                    });
                 });
             });
         }
         else {
             model.setUser(user);
-            getFolders(callback, (f) -> {
+            getFolder(callback, token, user.getRootFolder(), (f) -> {
                 if (f == null) return;
-                model.setFolders(f);
-                callback.onLoadStorageSuccess(model);
+                model.setCurrentFolder(f);
+                getFolders(callback, token, (fols) -> {
+                    if (fols == null) return;
+                    model.setFolders(fols);
+                    getFiles(callback, token, (fils) -> {
+                        if (fils == null) return;
+                        model.setFiles(fils);
+                        callback.onLoadStorageSuccess(model);
+                    });
+                });
             });
         }
         // нельзя, т.к. методы выше ассинхронные!!! callback.onStorageData(model);
