@@ -2,8 +2,6 @@ package ru.cloudstorage.client.db;
 
 import android.content.Context;
 
-import ru.cloudstorage.client.MainActivity;
-
 public class DatabasePreferences {
     Context context;
     private String login;

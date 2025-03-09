@@ -1,24 +1,23 @@
 package ru.cloudstorage.client.ui.login;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
-import android.widget.Button;
-import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
-import androidx.fragment.app.FragmentTransaction;
 import androidx.lifecycle.ViewModelProvider;
 
 import ru.cloudstorage.client.R;
-import ru.cloudstorage.client.rest.SimpleService;
 import ru.cloudstorage.client.databinding.FragmentLoginBinding;
 import ru.cloudstorage.client.db.DatabasePreferences;
+import ru.cloudstorage.client.rest.SimpleService;
 import ru.cloudstorage.client.ui.storage.StorageFragment;
 
 public class LoginFragment extends Fragment implements LoginCallback {
