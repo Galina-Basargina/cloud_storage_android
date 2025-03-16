@@ -13,12 +13,8 @@ import android.widget.ListView;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
-import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import ru.cloudstorage.client.R;
 import ru.cloudstorage.client.databinding.FragmentStorageBinding;
@@ -38,18 +34,13 @@ public class StorageFragment extends Fragment implements
     private FragmentStorageBinding binding;
     private ListView listView;
     private SwipeRefreshLayout swipeRefreshLayout;
-    private List<String> data_TO_BE_DELETED;
+    private StorageItems data_TO_BE_DELETED;
     private StorageAdapter adapter;
     private float startX;
 
     @SuppressLint("ClickableViewAccessibility")
     public View onCreateView(@NonNull LayoutInflater inflater,
                              ViewGroup container, Bundle savedInstanceState) {
-        Log.d("!!!2", this.toString());
-//        Log.d("!!!2", this.getTag());
-        Log.d("!!!2", container.toString());
-        //Log.d("!!!2", this.container.toString());
-
         this.container = container;
 
         // ViewModel создается однократно, указатель на нее сохраняется во фрагменте
@@ -61,9 +52,7 @@ public class StorageFragment extends Fragment implements
         View root = binding.getRoot();
 
         // Инициализация данных
-        data_TO_BE_DELETED = new ArrayList<>();
-        for (int i = 1; i <= 20; i++)
-            data_TO_BE_DELETED.add("Item " + i);
+        data_TO_BE_DELETED = new StorageItems();
 
         // Настройка адаптера
         adapter = new StorageAdapter(getContext(), data_TO_BE_DELETED);
@@ -83,6 +72,12 @@ public class StorageFragment extends Fragment implements
     public void onDestroyView() {
         super.onDestroyView();
         binding = null;
+    }
+
+    private void notifyError(String error) {
+        data_TO_BE_DELETED.clear();
+        data_TO_BE_DELETED.add(error);
+        adapter.notifyDataSetChanged();
     }
 
     private void showDeleteDialog(int position) {
@@ -114,6 +109,29 @@ public class StorageFragment extends Fragment implements
                         showDeleteDialog(position);
                     }
                 }
+                else {
+                    // Выбор папки или файла
+                    int position = listView.pointToPosition((int) event.getX(), (int) event.getY());
+                    if (position != AdapterView.INVALID_POSITION) {
+                        String name = data_TO_BE_DELETED.get(position);
+                        Folder folder = data_TO_BE_DELETED.getFolder(name);
+                        if (folder != null) {
+                            Log.d("!!!folder", folder.getId().toString());
+                            Storage storage = storageViewModel.getStorage().getValue();
+                            if (storage != null) {
+                                storage.setCurrentFolder(folder);
+                                selectCurrentFolder(storage);
+                            }
+                        }
+                        else {
+                            File file = data_TO_BE_DELETED.getFile(name);
+                            if (file != null)
+                                Log.d("!!!file", file.getId().toString());
+                            else
+                                Log.d("!!!", "error");
+                        }
+                    }
+                }
                 break;
         }
         return false;
@@ -122,7 +140,6 @@ public class StorageFragment extends Fragment implements
     @Override
     public void onRefresh() {
         //new Handler().postDelayed(() -> {
-            data_TO_BE_DELETED.set(0, "Item " + System.currentTimeMillis());
             SimpleService.getInstance().getStorageData(this);
             // Далее будет работать ассинхронный метод getStorageData
             // Его работа завершается вызовом методов StorageCallback, поэтому именно там
@@ -147,19 +164,17 @@ public class StorageFragment extends Fragment implements
 
     @Override
     public void onAuthError(boolean resetToken) {
-        data_TO_BE_DELETED.set(0, getResources().getString(R.string.error_unauthorized));
         if (resetToken)
             DatabasePreferences.getInstance().resetToken();
         //TODO: enableLogin();
-        adapter.notifyDataSetChanged();
+        notifyError(getResources().getString(R.string.error_unauthorized));
         swipeRefreshLayout.setRefreshing(false);
     }
 
     @Override
     public void onNetworkError(String error) {
-        data_TO_BE_DELETED.set(0, error);
         //TODO: enableLogin();
-        adapter.notifyDataSetChanged();
+        notifyError(error);
         swipeRefreshLayout.setRefreshing(false);
     }
 
@@ -167,26 +182,39 @@ public class StorageFragment extends Fragment implements
     public void onLoadStorageFailure() {
         // любая ошибка, кроме authError и networkError
         // По сути, это ошибки программиста (изменился интерфейс запросов или ответов)
-        data_TO_BE_DELETED.set(0, "onLoadStorageFailure");
-        adapter.notifyDataSetChanged();
+        notifyError("onLoadStorageFailure");
         swipeRefreshLayout.setRefreshing(false);
     }
 
     @Override
     public void onLoadStorageSuccess(Storage storage) {
-        data_TO_BE_DELETED.clear();
-        data_TO_BE_DELETED.add(storage.getCurrentFolder().getName());
-        for (Folder f: storage.getFolders()) {
-            data_TO_BE_DELETED.add(f.getName());
-        }
-        for (File f: storage.getFiles()) {
-            data_TO_BE_DELETED.add(f.getOriginalFilename());
-        }
+        selectCurrentFolder(storage);
 
         // Старая версия storage затирается на новую версию storage
         // Автоматически будут обновлены все данные с помощью observer
         storageViewModel.setStorage(storage);
-        adapter.notifyDataSetChanged();
         swipeRefreshLayout.setRefreshing(false);
+    }
+
+    private void selectCurrentFolder(Storage storage) {
+        data_TO_BE_DELETED.clear();
+        if (storage.getCurrentFolder().getParent() != null) {
+            for (Folder folder : storage.getFolders())
+                if (folder.getId().intValue() == storage.getCurrentFolder().getParent().intValue()) {
+                    data_TO_BE_DELETED.addParentFolder(folder);
+                    break;
+                }
+        }
+        for (Folder f: storage.getFolders()) {
+            if (f.getParent() == null)
+                continue;
+            if (f.getParent().intValue() == storage.getCurrentFolder().getId().intValue())
+                data_TO_BE_DELETED.addFolder(f);
+        }
+        for (File f: storage.getFiles()) {
+            if (f.getFolder().intValue() == storage.getCurrentFolder().getId().intValue())
+                data_TO_BE_DELETED.addFile(f);
+        }
+        adapter.notifyDataSetChanged();
     }
 }

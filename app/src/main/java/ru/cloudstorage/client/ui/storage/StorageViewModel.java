@@ -15,8 +15,6 @@ public class StorageViewModel extends ViewModel {
     private MutableLiveData<Storage> storage;
 
     public StorageViewModel() {
-        Log.d("!!!4", this.toString());
-
         storage = new MutableLiveData<>();
         storage.setValue(new Storage());
     }
