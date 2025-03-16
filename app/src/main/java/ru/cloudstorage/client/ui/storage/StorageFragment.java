@@ -13,13 +13,19 @@ import android.widget.ListView;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import ru.cloudstorage.client.R;
 import ru.cloudstorage.client.databinding.FragmentStorageBinding;
 import ru.cloudstorage.client.db.DatabasePreferences;
 import ru.cloudstorage.client.rest.SimpleService;
+import ru.cloudstorage.client.rest.cloudstorage.File;
+import ru.cloudstorage.client.rest.cloudstorage.Folder;
 import ru.cloudstorage.client.rest.cloudstorage.Storage;
 import ru.cloudstorage.client.rest.cloudstorage.User;
 
@@ -32,6 +38,7 @@ public class StorageFragment extends Fragment implements
     private FragmentStorageBinding binding;
     private ListView listView;
     private SwipeRefreshLayout swipeRefreshLayout;
+    private List<String> data_TO_BE_DELETED;
     private StorageAdapter adapter;
     private float startX;
 
@@ -53,8 +60,13 @@ public class StorageFragment extends Fragment implements
         binding = FragmentStorageBinding.inflate(inflater, container, false);
         View root = binding.getRoot();
 
+        // Инициализация данных
+        data_TO_BE_DELETED = new ArrayList<>();
+        for (int i = 1; i <= 20; i++)
+            data_TO_BE_DELETED.add("Item " + i);
+
         // Настройка адаптера
-        adapter = new StorageAdapter(getContext(), storageViewModel.getData().getValue());
+        adapter = new StorageAdapter(getContext(), data_TO_BE_DELETED);
         listView = binding.listView;
         swipeRefreshLayout = binding.refreshLayout;
         // Подключаем адаптер
@@ -75,10 +87,10 @@ public class StorageFragment extends Fragment implements
 
     private void showDeleteDialog(int position) {
         new AlertDialog.Builder(getContext())
-            .setTitle("Удаление элемента " + storageViewModel.getDataAt(position))
+            .setTitle("Удаление элемента " + data_TO_BE_DELETED.get(position))
             .setMessage("Вы уверены?")
             .setPositiveButton("Удалить", (dialog, which) -> {
-                storageViewModel.removeDataAt(position);
+                data_TO_BE_DELETED.remove(position);
                 adapter.notifyDataSetChanged();
             })
             .setNegativeButton("Отмена", null)
@@ -110,8 +122,8 @@ public class StorageFragment extends Fragment implements
     @Override
     public void onRefresh() {
         //new Handler().postDelayed(() -> {
+            data_TO_BE_DELETED.set(0, "Item " + System.currentTimeMillis());
             SimpleService.getStorageData(this);
-            storageViewModel.setDataAt(1, "Item " + System.currentTimeMillis());
             // Далее будет работать ассинхронный метод getStorageData
             // Его работа завершается вызовом методов StorageCallback, поэтому именно там
             // будет обновляться набор данных адаптера и останавливаться иконка "крутилки"
@@ -129,8 +141,13 @@ public class StorageFragment extends Fragment implements
     }
 
     @Override
+    public Folder getCurrentFolder() {
+        return storageViewModel.getStorage().getValue().getCurrentFolder();
+    }
+
+    @Override
     public void onAuthError(boolean resetToken) {
-        storageViewModel.setDataAt(0, getResources().getString(R.string.error_unauthorized));
+        data_TO_BE_DELETED.set(0, getResources().getString(R.string.error_unauthorized));
         if (resetToken)
             DatabasePreferences.getInstance().resetToken();
         //TODO: enableLogin();
@@ -140,7 +157,7 @@ public class StorageFragment extends Fragment implements
 
     @Override
     public void onNetworkError(String error) {
-        storageViewModel.setDataAt(0, error);
+        data_TO_BE_DELETED.set(0, error);
         //TODO: enableLogin();
         adapter.notifyDataSetChanged();
         swipeRefreshLayout.setRefreshing(false);
@@ -150,14 +167,22 @@ public class StorageFragment extends Fragment implements
     public void onLoadStorageFailure() {
         // любая ошибка, кроме authError и networkError
         // По сути, это ошибки программиста (изменился интерфейс запросов или ответов)
-        storageViewModel.setDataAt(0, "onLoadStorageFailure");
+        data_TO_BE_DELETED.set(0, "onLoadStorageFailure");
         adapter.notifyDataSetChanged();
         swipeRefreshLayout.setRefreshing(false);
     }
 
     @Override
     public void onLoadStorageSuccess(Storage storage) {
-        storageViewModel.setDataAt(0, "onLoadStorageSuccess");
+        data_TO_BE_DELETED.clear();
+        data_TO_BE_DELETED.add(storage.getCurrentFolder().getName());
+        for (Folder f: storage.getFolders()) {
+            data_TO_BE_DELETED.add(f.getName());
+        }
+        for (File f: storage.getFiles()) {
+            data_TO_BE_DELETED.add(f.getOriginalFilename());
+        }
+
         // Старая версия storage затирается на новую версию storage
         // Автоматически будут обновлены все данные с помощью observer
         storageViewModel.setStorage(storage);

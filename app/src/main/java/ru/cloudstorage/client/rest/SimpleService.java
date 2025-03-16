@@ -354,9 +354,13 @@ public final class SimpleService {
                 model.setUser(u);
                 getFolder(callback, token, u.getRootFolder(), (f) -> {
                     if (f == null) return;
-                    model.setCurrentFolder(f);
                     getFolders(callback, token, (fols) -> {
                         if (fols == null) return;
+                        for (Folder tmp : fols)
+                            if (tmp.getId().intValue() == f.getId().intValue()) {
+                                model.setCurrentFolder(tmp);
+                                break;
+                            }
                         model.setFolders(fols);
                         getFiles(callback, token, (fils) -> {
                             if (fils == null) return;
@@ -368,18 +372,28 @@ public final class SimpleService {
             });
         }
         else {
+            final Folder previousFolder = callback.getCurrentFolder();
             model.setUser(user);
-            getFolder(callback, token, user.getRootFolder(), (f) -> {
-                if (f == null) return;
-                model.setCurrentFolder(f);
-                getFolders(callback, token, (fols) -> {
-                    if (fols == null) return;
-                    model.setFolders(fols);
-                    getFiles(callback, token, (fils) -> {
-                        if (fils == null) return;
-                        model.setFiles(fils);
-                        callback.onLoadStorageSuccess(model);
-                    });
+            getFolders(callback, token, (fols) -> {
+                if (fols == null) return;
+                // Проверяем и задаем значение currentFolder
+                Folder rf = null;
+                for (Folder tmp : fols) {
+                    if (tmp.getId().intValue() == previousFolder.getId().intValue()) {
+                        model.setCurrentFolder(tmp);
+                        break;
+                    }
+                    if (tmp.getId().intValue() == user.getRootFolder().intValue())
+                        rf = tmp;
+                }
+                if (model.getCurrentFolder() == null)
+                    model.setCurrentFolder(rf);
+                // Устанавливаем в модели список загруженных папок
+                model.setFolders(fols);
+                getFiles(callback, token, (fils) -> {
+                    if (fils == null) return;
+                    model.setFiles(fils);
+                    callback.onLoadStorageSuccess(model);
                 });
             });
         }
