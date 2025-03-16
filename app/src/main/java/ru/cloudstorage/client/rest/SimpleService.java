@@ -1,11 +1,14 @@
 package ru.cloudstorage.client.rest;
 
+import android.util.Log;
+
 import androidx.annotation.NonNull;
 
 import com.google.gson.JsonObject;
 
 import java.util.List;
 
+import okhttp3.OkHttpClient;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -27,6 +30,44 @@ import ru.cloudstorage.client.ui.login.LoginCallback;
 import ru.cloudstorage.client.ui.storage.StorageCallback;
 
 public final class SimpleService {
+
+    // https://en.wikipedia.org/wiki/Singleton_pattern#Lazy_initialization
+    private static volatile SimpleService instance = null;
+    private SimpleService() {}
+    public static SimpleService getInstance() {
+        if (instance == null) {
+            synchronized (SimpleService.class) {
+                if (instance == null) {
+                    instance = new SimpleService();
+                    instance.init();
+                }
+            }
+        }
+        return instance;
+    }
+
+    private static OkHttpClient okHttpClient;
+    private static Retrofit retrofit;
+
+    private void init() {
+        okHttpClient = new OkHttpClient.Builder().build();
+        // Создаем простой REST адаптер, с помощью которого будем отправлять запросы
+        retrofit = new Retrofit.Builder()
+            .baseUrl(CLOUD_STORAGE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build();
+    }
+
+    public void finish() {
+        Log.d("!!!", "finished");
+        // Отменить все запросы
+        okHttpClient.dispatcher().cancelAll();
+        // Закрыть соединения
+        okHttpClient.connectionPool().evictAll();
+        // Остановить исполнители
+        okHttpClient.dispatcher().executorService().shutdown();
+    }
     private static final String CLOUD_STORAGE_URL = "http://336707.simplecloud.ru";
 
     private static class GetFolders {
@@ -56,13 +97,7 @@ public final class SimpleService {
         Call<GetFiles> getFilesData(@Header("Authorization") String authHeader);
     }
 
-    public static void login(LoginCallback callback, String login, String password) {
-        // Создаем простой REST адаптер, с помощью которого отправим запрос
-        Retrofit retrofit =
-            new Retrofit.Builder()
-                .baseUrl(CLOUD_STORAGE_URL)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
+    public void login(LoginCallback callback, String login, String password) {
         // Создаем экземпляр интерфейса работы с сервером
         CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
         // Создаем параметры запроса, которые будут отправлены как json
@@ -105,13 +140,7 @@ public final class SimpleService {
         });
     }
 
-    public static void logout() {
-        // Создаем простой REST адаптер, с помощью которого отправим запрос
-        Retrofit retrofit =
-            new Retrofit.Builder()
-                .baseUrl(CLOUD_STORAGE_URL)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
+    public void logout() {
         // Создаем экземпляр интерфейса работы с сервером
         CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
 
@@ -131,12 +160,6 @@ public final class SimpleService {
     }
 
     private static void getUserData(@NonNull StorageCallback callback, String token, UserDataReceiveCallback finish) {
-        // Создаем простой REST адаптер, с помощью которого отправим запрос
-        Retrofit retrofit =
-            new Retrofit.Builder()
-                .baseUrl(CLOUD_STORAGE_URL)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
         // Создаем экземпляр интерфейса работы с сервером
         CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
         // Готовим метод к вызову
@@ -179,12 +202,6 @@ public final class SimpleService {
     }
 
     private static void getFolder(StorageCallback callback, String token, int folderId, FolderDataReceiveCallback finish) {
-        // Создаем простой REST адаптер, с помощью которого отправим запрос
-        Retrofit retrofit =
-            new Retrofit.Builder()
-                .baseUrl(CLOUD_STORAGE_URL)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
         // Создаем экземпляр интерфейса работы с сервером
         CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
         // Готовим метод к вызову
@@ -228,12 +245,6 @@ public final class SimpleService {
     }
 
     private static void getFolders(StorageCallback callback, String token, FoldersDataReceiveCallback finish) {
-        // Создаем простой REST адаптер, с помощью которого отправим запрос
-        Retrofit retrofit =
-            new Retrofit.Builder()
-                .baseUrl(CLOUD_STORAGE_URL)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
         // Создаем экземпляр интерфейса работы с сервером
         CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
         // Готовим метод к вызову
@@ -276,12 +287,6 @@ public final class SimpleService {
     }
 
     private static void getFiles(StorageCallback callback, String token, FilesDataReceiveCallback finish) {
-        // Создаем простой REST адаптер, с помощью которого отправим запрос
-        Retrofit retrofit =
-            new Retrofit.Builder()
-                .baseUrl(CLOUD_STORAGE_URL)
-                .addConverterFactory(GsonConverterFactory.create())
-                .build();
         // Создаем экземпляр интерфейса работы с сервером
         CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
         // Готовим метод к вызову
@@ -297,8 +302,7 @@ public final class SimpleService {
                         callback.onAuthError(true); // token удалится
                     else
                         callback.onLoadStorageFailure(); // все остальные случаи
-                }
-                else {
+                } else {
                     GetFiles files = response.body();
                     if (files != null && files.files != null)
                         if (!files.files.isEmpty()) {
@@ -337,7 +341,7 @@ public final class SimpleService {
         void onLoadFinished(List<File> files);
     }
 
-    public static void getStorageData(@NonNull StorageCallback callback) {
+    public void getStorageData(@NonNull StorageCallback callback) {
         // Проверка, что пользователь залогинен
         final String token = callback.getToken();
         if (token == null) {

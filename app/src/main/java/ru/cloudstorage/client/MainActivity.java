@@ -14,13 +14,21 @@ import androidx.navigation.ui.NavigationUI;
 import com.google.android.material.navigation.NavigationView;
 import com.google.android.material.snackbar.Snackbar;
 
+import retrofit2.Retrofit;
 import ru.cloudstorage.client.databinding.ActivityMainBinding;
 import ru.cloudstorage.client.db.DatabasePreferences;
+import ru.cloudstorage.client.rest.SimpleService;
 
 public class MainActivity extends AppCompatActivity {
 
     private AppBarConfiguration mAppBarConfiguration;
     private ActivityMainBinding binding;
+
+    @Override
+    protected void onDestroy() {
+        SimpleService.getInstance().finish();
+        super.onDestroy();
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

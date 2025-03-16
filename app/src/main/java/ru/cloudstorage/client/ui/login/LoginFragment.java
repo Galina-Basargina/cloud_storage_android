@@ -81,7 +81,7 @@ public class LoginFragment extends Fragment implements LoginCallback {
 
         DatabasePreferences.getInstance().setLogin(user);
 
-        SimpleService.login(this, user, password);
+        SimpleService.getInstance().login(this, user, password);
     }
 
     private void onLogout(View view) {
@@ -90,7 +90,7 @@ public class LoginFragment extends Fragment implements LoginCallback {
 
         DatabasePreferences.getInstance().resetToken();
 
-        SimpleService.logout();
+        SimpleService.getInstance().logout();
     }
 
     @Override

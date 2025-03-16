@@ -123,7 +123,7 @@ public class StorageFragment extends Fragment implements
     public void onRefresh() {
         //new Handler().postDelayed(() -> {
             data_TO_BE_DELETED.set(0, "Item " + System.currentTimeMillis());
-            SimpleService.getStorageData(this);
+            SimpleService.getInstance().getStorageData(this);
             // Далее будет работать ассинхронный метод getStorageData
             // Его работа завершается вызовом методов StorageCallback, поэтому именно там
             // будет обновляться набор данных адаптера и останавливаться иконка "крутилки"
