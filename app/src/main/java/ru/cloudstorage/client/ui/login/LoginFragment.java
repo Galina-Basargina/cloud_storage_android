@@ -13,6 +13,8 @@ import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.navigation.Navigation;
+import androidx.navigation.ui.NavigationUI;
 
 import ru.cloudstorage.client.R;
 import ru.cloudstorage.client.databinding.FragmentLoginBinding;
@@ -71,6 +73,7 @@ public class LoginFragment extends Fragment implements LoginCallback {
     }
 
     private void onLogin(View view) {
+        // TODO: ПЕРЕДАТЬ view в onSuccess
         loginViewModel.resetError();
 
         String user = binding.editLogin.getText().toString();
@@ -110,15 +113,17 @@ public class LoginFragment extends Fragment implements LoginCallback {
         DatabasePreferences.getInstance().setToken(token);
         disableLogin();
 
-        Fragment fragment = getFragmentManager().findFragmentById(this.getId());
-        FragmentManager fragmentManager = getActivity().getSupportFragmentManager();
-        fragmentManager.beginTransaction()
-                //.replace(((ViewGroup)getView().getParent()).getId(), StorageFragment.class, null)
-                .replace(this.container.getId(), StorageFragment.class, null)
-                .setReorderingAllowed(true)
-                .addToBackStack(null) // Name can be null
-                .commit();
+//        Fragment fragment = getFragmentManager().findFragmentById(this.getId());
+//        FragmentManager fragmentManager = getActivity().getSupportFragmentManager();
+//        fragmentManager.beginTransaction()
+//                //.replace(((ViewGroup)getView().getParent()).getId(), StorageFragment.class, null)
+//                .replace(this.container.getId(), StorageFragment.class, null)
+//                .setReorderingAllowed(true)
+//                .addToBackStack(null) // Name can be null
+//                .commit();
 
+        // TODO: попробовать сделать navController и переделать автоматический переход
+//        Navigation.findNavController(this).navigate(R.id.action_nav_login_to_nav_storage);
 
 //        FragmentManager manager = getActivity().getSupportFragmentManager();
 //        manager.popBackStack(R.id.nav_storage, FragmentManager.POP_BACK_STACK_INCLUSIVE);
