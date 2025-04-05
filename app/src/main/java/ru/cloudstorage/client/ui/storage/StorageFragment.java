@@ -1,9 +1,13 @@
 package ru.cloudstorage.client.ui.storage;
 
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.ContextMenu;
+import android.view.GestureDetector;
 import android.view.LayoutInflater;
+import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
@@ -37,6 +41,8 @@ public class StorageFragment extends Fragment implements
     private StorageItems data_TO_BE_DELETED;
     private StorageAdapter adapter;
     private float startX;
+    private ContextMenu contextMenu;
+    private boolean errorInData;
 
     @SuppressLint("ClickableViewAccessibility")
     public View onCreateView(@NonNull LayoutInflater inflater,
@@ -60,10 +66,16 @@ public class StorageFragment extends Fragment implements
         swipeRefreshLayout = binding.refreshLayout;
         // Подключаем адаптер
         listView.setAdapter(adapter);
-        // Подключаем метод свайпа для удаления
+        // Подключаем метод свайпа для удаления и отслеживания нажатий на списке
         listView.setOnTouchListener(this);
         // Подключаем метод свайпа для обновления
         swipeRefreshLayout.setOnRefreshListener(this);
+
+        // Подключаем возможность использования меню во фрагменте
+        errorInData = true;
+        setHasOptionsMenu(true);
+        // Подключаем контекстное меню для определенного элемента
+        registerForContextMenu(binding.listView);
 
         return root;
     }
@@ -74,47 +86,83 @@ public class StorageFragment extends Fragment implements
         binding = null;
     }
 
+    @Override
+    public void onCreateContextMenu(ContextMenu menu, View v, ContextMenu.ContextMenuInfo menuInfo) {
+        super.onCreateContextMenu(menu, v, menuInfo);
+        getActivity().getMenuInflater().inflate(R.menu.context_menu, menu);
+        contextMenu = menu;
+
+        contextMenu.findItem(R.id.action_context_delete).setEnabled(!errorInData);
+        contextMenu.findItem(R.id.action_context_open).setEnabled(!errorInData);
+        contextMenu.findItem(R.id.action_context_rename).setEnabled(!errorInData);
+        contextMenu.findItem(R.id.action_context_replace).setEnabled(!errorInData);
+    }
+
+    @Override
+    public boolean onContextItemSelected(MenuItem item) {
+        AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) item.getMenuInfo();
+        Log.d("!!!", String.valueOf(info.position));
+        if (item.getItemId() == R.id.action_context_delete) {
+            dialogDelete(info.position);
+            return true;
+        }
+        return super.onContextItemSelected(item);
+    }
+
     private void notifyError(String error) {
         data_TO_BE_DELETED.clear();
         data_TO_BE_DELETED.add(error);
         adapter.notifyDataSetChanged();
+        errorInData = true;
     }
 
-    private void showDeleteDialog(int position) {
+    private void dialogDelete(int position) {
         new AlertDialog.Builder(getContext())
             .setTitle("Удаление элемента " + data_TO_BE_DELETED.get(position))
             .setMessage("Вы уверены?")
             .setPositiveButton("Удалить", (dialog, which) -> {
-                data_TO_BE_DELETED.remove(position);
-                adapter.notifyDataSetChanged();
+                doDelete(position);
             })
             .setNegativeButton("Отмена", null)
             .show();
     }
 
+    private boolean longPress = false;
+
     @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouch(View v, MotionEvent event) {
+        final GestureDetector gestureDetector = new GestureDetector(
+            getContext(),
+            new GestureDetector.SimpleOnGestureListener() {
+                public void onLongPress(MotionEvent e) {
+                    longPress = true;
+                }
+            }
+        );
+
         switch (event.getAction()) {
             case MotionEvent.ACTION_DOWN:
                 startX = event.getX();
-                break;
+                longPress = false;
+                return gestureDetector.onTouchEvent(event);
+
             case MotionEvent.ACTION_UP:
+                if (longPress) return false;
                 float endX = event.getX();
                 if (Math.abs(startX - endX) > 100) {
                     // Определение свайпа
                     // см. пример https://github.com/Galina-Basargina/swipe_view_app
                     int position = listView.pointToPosition((int) event.getX(), (int) event.getY());
                     if (position != AdapterView.INVALID_POSITION) {
-                        showDeleteDialog(position);
+                        dialogDelete(position);
                     }
                 }
                 else {
                     // Выбор папки или файла
                     int position = listView.pointToPosition((int) event.getX(), (int) event.getY());
                     if (position != AdapterView.INVALID_POSITION) {
-                        String name = data_TO_BE_DELETED.get(position);
-                        Folder folder = data_TO_BE_DELETED.getFolder(name);
+                        Folder folder = data_TO_BE_DELETED.getFolderByPosition(position);
                         if (folder != null) {
                             Log.d("!!!folder", folder.getId().toString());
                             Storage storage = storageViewModel.getStorage().getValue();
@@ -124,7 +172,7 @@ public class StorageFragment extends Fragment implements
                             }
                         }
                         else {
-                            File file = data_TO_BE_DELETED.getFile(name);
+                            File file = data_TO_BE_DELETED.getFileByPosition(position);
                             if (file != null)
                                 Log.d("!!!file", file.getId().toString());
                             else
@@ -145,6 +193,19 @@ public class StorageFragment extends Fragment implements
             // Его работа завершается вызовом методов StorageCallback, поэтому именно там
             // будет обновляться набор данных адаптера и останавливаться иконка "крутилки"
         //}, 1000);
+    }
+
+    private void doDelete(int position) {
+        File file = data_TO_BE_DELETED.getFileByPosition(position);
+        if (file != null) {
+            SimpleService.getInstance().removeFileAndGetStorageData(this);
+            return;
+        }
+
+        Folder folder = data_TO_BE_DELETED.getFolderByPosition(position);
+        if (folder != null) {
+            SimpleService.getInstance().removeFolderAndGetStorageData(this);
+        }
     }
 
     @Override
@@ -194,6 +255,7 @@ public class StorageFragment extends Fragment implements
         // Автоматически будут обновлены все данные с помощью observer
         storageViewModel.setStorage(storage);
         swipeRefreshLayout.setRefreshing(false);
+        errorInData = false;
     }
 
     private void selectCurrentFolder(Storage storage) {

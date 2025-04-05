@@ -31,6 +31,12 @@ public class StorageItems extends ArrayList<String> {
         if (name.charAt(0) != '/') return null;
         return folders.get(name.substring(1));
     }
+    public Folder getFolderByPosition(int position) {
+        if (position < 0) return null;
+        if (position >= this.size()) return null;
+        String name = this.get(position);
+        return getFolder(name);
+    }
 
     public void addFile(File file) {
         this.add(" " + file.getOriginalFilename());
@@ -40,5 +46,11 @@ public class StorageItems extends ArrayList<String> {
         if (name.isEmpty()) return null;
         if (name.charAt(0) != ' ') return null;
         return files.get(name.substring(1));
+    }
+    public File getFileByPosition(int position) {
+        if (position < 0) return null;
+        if (position >= this.size()) return null;
+        String name = this.get(position);
+        return getFile(name);
     }
 }

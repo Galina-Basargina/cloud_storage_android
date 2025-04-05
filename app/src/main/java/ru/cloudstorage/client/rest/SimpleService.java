@@ -403,4 +403,12 @@ public final class SimpleService {
         }
         // нельзя, т.к. методы выше ассинхронные!!! callback.onStorageData(model);
     }
+
+    public void removeFileAndGetStorageData(@NonNull StorageCallback callback) {
+        getStorageData(callback);
+    }
+
+    public void removeFolderAndGetStorageData(@NonNull StorageCallback callback) {
+        getStorageData(callback);
+    }
 }
