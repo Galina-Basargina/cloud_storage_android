@@ -10,11 +10,15 @@
         android:title="Переименовать"
         app:showAsAction="collapseActionView"/>
     <item
+        android:id="@+id/action_context_replace"
+        android:title="Переместить"
+        app:showAsAction="collapseActionView"/>
+    <item
         android:id="@+id/action_context_delete"
         android:title="Удалить"
         app:showAsAction="collapseActionView"/>
     <item
-        android:id="@+id/action_context_replace"
-        android:title="Переместить"
+        android:id="@+id/action_context_share"
+        android:title="Поделиться"
         app:showAsAction="collapseActionView"/>
 </menu>

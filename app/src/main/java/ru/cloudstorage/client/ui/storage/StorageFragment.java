@@ -94,10 +94,11 @@ public class StorageFragment extends Fragment implements
         getActivity().getMenuInflater().inflate(R.menu.context_menu, menu);
         contextMenu = menu;
 
-        contextMenu.findItem(R.id.action_context_delete).setEnabled(!errorInData && false);
-        contextMenu.findItem(R.id.action_context_open).setEnabled(!errorInData);
+        contextMenu.findItem(R.id.action_context_delete).setEnabled(!errorInData);
+        contextMenu.findItem(R.id.action_context_open).setEnabled(!errorInData && false);
         contextMenu.findItem(R.id.action_context_rename).setEnabled(!errorInData);
         contextMenu.findItem(R.id.action_context_replace).setEnabled(!errorInData && false);
+        contextMenu.findItem(R.id.action_context_share).setEnabled(!errorInData);
     }
 
     @Override
