@@ -15,15 +15,16 @@ import retrofit2.Response;
 import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 import retrofit2.http.Body;
+import retrofit2.http.DELETE;
 import retrofit2.http.GET;
 import retrofit2.http.Header;
 import retrofit2.http.Headers;
 import retrofit2.http.POST;
 import retrofit2.http.Path;
 import ru.cloudstorage.client.rest.cloudstorage.Auth;
+import ru.cloudstorage.client.rest.cloudstorage.Empty;
 import ru.cloudstorage.client.rest.cloudstorage.File;
 import ru.cloudstorage.client.rest.cloudstorage.Folder;
-import ru.cloudstorage.client.rest.cloudstorage.Logoff;
 import ru.cloudstorage.client.rest.cloudstorage.Storage;
 import ru.cloudstorage.client.rest.cloudstorage.User;
 import ru.cloudstorage.client.ui.login.LoginCallback;
@@ -82,7 +83,7 @@ public final class SimpleService {
         Call<Auth> login(@Body JsonObject body);
 
         @GET("/auth/logout")
-        Call<Logoff> logout();
+        Call<Empty> logout();
 
         @GET("/users/me")
         Call<User> getUserData(@Header("Authorization") String authHeader);
@@ -95,6 +96,9 @@ public final class SimpleService {
 
         @GET("/files")
         Call<GetFiles> getFilesData(@Header("Authorization") String authHeader);
+
+        @DELETE("/files/{id}")
+        Call<Empty> removeFile(@Path("id") int id, @Header("Authorization") String authHeader);
     }
 
     public void login(LoginCallback callback, String login, String password) {
@@ -145,15 +149,15 @@ public final class SimpleService {
         CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
 
         // Готовим метод к вызову
-        Call<Logoff> call = cloud_storage.logout();
+        Call<Empty> call = cloud_storage.logout();
         // Ждем ответ
-        call.enqueue(new Callback<Logoff>() {
+        call.enqueue(new Callback<Empty>() {
             @Override
-            public void onResponse(Call<Logoff> call, Response<Logoff> response) {
+            public void onResponse(Call<Empty> call, Response<Empty> response) {
             }
 
             @Override
-            public void onFailure(Call<Logoff> call, Throwable t) {
+            public void onFailure(Call<Empty> call, Throwable t) {
                 // Происходит в случае сетевых ошибок
             }
         });
@@ -325,6 +329,42 @@ public final class SimpleService {
         });
     }
 
+    private static void removeFile(StorageCallback callback, String token, int fileId, RemoveFileReceiveCallback finish) {
+        // Создаем экземпляр интерфейса работы с сервером
+        CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
+        // Готовим метод к вызову
+        Call<Empty> call = cloud_storage.removeFile(fileId, "Bearer "+token);
+        // Ждем ответ
+        // В случае успеха приходит ответ 200
+        // В случае провала - надо удалить сохраненный токен
+        call.enqueue(new Callback<Empty>() {
+            @Override
+            public void onResponse(Call<Empty> call, Response<Empty> response) {
+                if (!response.isSuccessful()) {
+                    if (response.code() == 401)
+                        callback.onAuthError(true); // token удалится
+                    else if (response.code() == 404) {
+                        finish.onLoadFinished(404); // работает не как ошибка - Not Found
+                        return;
+                    }
+                    else
+                        callback.onLoadStorageFailure(); // все остальные случаи
+                } else {
+                    finish.onLoadFinished(200); // OK
+                    return;
+                }
+                finish.onLoadFinished(null);
+            }
+
+            @Override
+            public void onFailure(Call<Empty> call, Throwable t) {
+                // Происходит в случае сетевых ошибок
+                callback.onNetworkError(t.toString()); // token НЕ удалится
+                finish.onLoadFinished(null);
+            }
+        });
+    }
+
     private interface UserDataReceiveCallback {
         void onLoadFinished(User user);
     }
@@ -341,9 +381,14 @@ public final class SimpleService {
         void onLoadFinished(List<File> files);
     }
 
+    private interface RemoveFileReceiveCallback {
+        void onLoadFinished(Integer httpCode);
+    }
+
     public void getStorageData(@NonNull StorageCallback callback) {
-        // Проверка, что пользователь залогинен
-        // если не залогинен, то будет выход с ошибкой аутентификации
+        // Проверка, что пользователь залогинен (в андроид приложении
+        // сохранен токен)
+        // Если не залогинен, то будет выход с ошибкой аутентификации
         final String token = callback.getToken();
         if (token == null) {
             callback.onAuthError(true); // token удалится
@@ -439,11 +484,35 @@ public final class SimpleService {
         // нельзя, т.к. методы выше ассинхронные!!! callback.onStorageData(model);
     }
 
-    public void removeFileAndGetStorageData(@NonNull StorageCallback callback) {
-        getStorageData(callback);
+    public void removeFileAndGetStorageData(@NonNull StorageCallback callback, File file) {
+        // Проверка, что пользователь залогинен (в андроид приложении
+        // сохранен токен)
+        // Если не залогинен, то будет выход с ошибкой аутентификации
+        final String token = callback.getToken();
+        if (token == null) {
+            callback.onAuthError(true); // token удалится
+            return;
+        }
+
+        // Удаляем с сервера файл и обновляем модель данных
+        removeFile(callback, token, file.getId().intValue(), (httpCode) -> {
+            if (httpCode == null)
+                ;
+            else if (httpCode == 404) {
+                // TODO: удалить объект из модели (а так же из StorageItems - это кэш названий)
+                // Удаление файла на сервере закончено успешно
+                // конец эстафеты (дальше будет создаваться новая модель)
+                getStorageData(callback);
+            }
+            else if (httpCode == 200) {
+                // Удаление файла на сервере закончено успешно
+                // конец эстафеты (дальше будет создаваться новая модель)
+                getStorageData(callback);
+            }
+        });
     }
 
-    public void removeFolderAndGetStorageData(@NonNull StorageCallback callback) {
+    public void removeFolderAndGetStorageData(@NonNull StorageCallback callback, Folder folder) {
         getStorageData(callback);
     }
 }

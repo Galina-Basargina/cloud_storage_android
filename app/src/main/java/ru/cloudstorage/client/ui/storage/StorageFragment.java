@@ -6,6 +6,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.GestureDetector;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.MotionEvent;
@@ -13,6 +14,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
@@ -198,13 +200,13 @@ public class StorageFragment extends Fragment implements
     private void doDelete(int position) {
         File file = data_TO_BE_DELETED.getFileByPosition(position);
         if (file != null) {
-            SimpleService.getInstance().removeFileAndGetStorageData(this);
+            SimpleService.getInstance().removeFileAndGetStorageData(this, file);
             return;
         }
 
         Folder folder = data_TO_BE_DELETED.getFolderByPosition(position);
         if (folder != null) {
-            SimpleService.getInstance().removeFolderAndGetStorageData(this);
+            SimpleService.getInstance().removeFolderAndGetStorageData(this, folder);
         }
     }
 
