@@ -343,21 +343,33 @@ public final class SimpleService {
 
     public void getStorageData(@NonNull StorageCallback callback) {
         // Проверка, что пользователь залогинен
+        // если не залогинен, то будет выход с ошибкой аутентификации
         final String token = callback.getToken();
         if (token == null) {
             callback.onAuthError(true); // token удалится
             return;
         }
 
+        // Создаем НОВУЮ МОДЕЛЬ ДАННЫХ и получаем данные о пользователе
+        // пользователя может и не быть, если это первая загрузка
+        // Если загрузка НОВОЙ модели завершится успешно, то СТАРАЯ
+        // модель будет ЗАМЕНЕНА
         Storage model = new Storage();
         final User user = callback.getUser();
 
         if (user == null || user.getRootFolder() == null) {
+            // Первая загрузка без данных о пользователе и его корневой
+            // папке
             getUserData(callback, token, (u) -> {
                 if (u == null) return;
+                // Удалось получить с сервера данные о пользователе
                 model.setUser(u);
+                // Сразу получаем с сервера данные о корневой папке, чтобы
+                // потом её не искать
                 getFolder(callback, token, u.getRootFolder(), (f) -> {
                     if (f == null) return;
+                    // Получаем с сервера список папок и выбираем корневую
+                    // папку как текущую
                     getFolders(callback, token, (fols) -> {
                         if (fols == null) return;
                         for (Folder tmp : fols)
@@ -365,10 +377,16 @@ public final class SimpleService {
                                 model.setCurrentFolder(tmp);
                                 break;
                             }
+                        // Сохраняем список папок в модель
                         model.setFolders(fols);
+                        // Получаем с сервера список файлов и сохраняем его
+                        // в модель
                         getFiles(callback, token, (fils) -> {
                             if (fils == null) return;
+                            // Сохраняем список файлов в модель
                             model.setFiles(fils);
+                            // Изменение модели данных закончено успешно
+                            // конец эстафеты (загрузки данных сервера)
                             callback.onLoadStorageSuccess(model);
                         });
                     });
@@ -376,12 +394,23 @@ public final class SimpleService {
             });
         }
         else {
+            // Берём из старой модели данных информацию о текущей папке
+            // и запоминаем (потом потребуется её id)
             final Folder previousFolder = callback.getCurrentFolder();
+            // Сохраняем в новую модель данные о пользователе из старой
+            // (данные о пользователе больше не загружаются, они уже есть)
             model.setUser(user);
+            // Получаем с сервера список папок и используем данные о текущей
+            // папке из старой модели и выбираем ее как текущую
             getFolders(callback, token, (fols) -> {
                 if (fols == null) return;
-                // Проверяем и задаем значение currentFolder
+                // Стелим себе простынку, ведь если информация о текущей папке
+                // из старой модели будет удалена с сервера, то сохраняем
+                // информацию о корневой папке для того, чтобы сделать её текущей
                 Folder rf = null;
+                // В новой модели сущности (объекты) папок и файлов будут новыми,
+                // поэтому надо восстановить в новой модели данные (указатель) на
+                // текущую папку (указатель на объект)
                 for (Folder tmp : fols) {
                     if (tmp.getId().intValue() == previousFolder.getId().intValue()) {
                         model.setCurrentFolder(tmp);
@@ -390,13 +419,19 @@ public final class SimpleService {
                     if (tmp.getId().intValue() == user.getRootFolder().intValue())
                         rf = tmp;
                 }
+                // Проверяем, удалена ли была информация о текущей папке с сервера?
+                // если да, то сохраняем указатель корневой папки как текущую
                 if (model.getCurrentFolder() == null)
                     model.setCurrentFolder(rf);
-                // Устанавливаем в модели список загруженных папок
+                // Сохраняем список файлов в модель
                 model.setFolders(fols);
+                // Получаем с сервера список файлов и сохраняем его в модель
                 getFiles(callback, token, (fils) -> {
                     if (fils == null) return;
+                    // Сохраняем список файлов в модель
                     model.setFiles(fils);
+                    // Изменение модели данных закончено успешно
+                    // конец эстафеты (загрузки данных сервера)
                     callback.onLoadStorageSuccess(model);
                 });
             });
