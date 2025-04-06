@@ -99,6 +99,9 @@ public final class SimpleService {
 
         @DELETE("/files/{id}")
         Call<Empty> removeFile(@Path("id") int id, @Header("Authorization") String authHeader);
+
+        @DELETE("/folders/{id}")
+        Call<Empty> removeFolder(@Path("id") int id, @Header("Authorization") String authHeader);
     }
 
     public void login(LoginCallback callback, String login, String password) {
@@ -335,7 +338,43 @@ public final class SimpleService {
         // Готовим метод к вызову
         Call<Empty> call = cloud_storage.removeFile(fileId, "Bearer "+token);
         // Ждем ответ
-        // В случае успеха приходит ответ 200
+        // В случае успеха приходит ответ 200 (или 404)
+        // В случае провала - надо удалить сохраненный токен
+        call.enqueue(new Callback<Empty>() {
+            @Override
+            public void onResponse(Call<Empty> call, Response<Empty> response) {
+                if (!response.isSuccessful()) {
+                    if (response.code() == 401)
+                        callback.onAuthError(true); // token удалится
+                    else if (response.code() == 404) {
+                        finish.onLoadFinished(404); // работает не как ошибка - Not Found
+                        return;
+                    }
+                    else
+                        callback.onLoadStorageFailure(); // все остальные случаи
+                } else {
+                    finish.onLoadFinished(200); // OK
+                    return;
+                }
+                finish.onLoadFinished(null);
+            }
+
+            @Override
+            public void onFailure(Call<Empty> call, Throwable t) {
+                // Происходит в случае сетевых ошибок
+                callback.onNetworkError(t.toString()); // token НЕ удалится
+                finish.onLoadFinished(null);
+            }
+        });
+    }
+
+    private static void removeFolder(StorageCallback callback, String token, int folderId, RemoveFolderReceiveCallback finish) {
+        // Создаем экземпляр интерфейса работы с сервером
+        CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
+        // Готовим метод к вызову
+        Call<Empty> call = cloud_storage.removeFolder(folderId, "Bearer "+token);
+        // Ждем ответ
+        // В случае успеха приходит ответ 200 (или 404)
         // В случае провала - надо удалить сохраненный токен
         call.enqueue(new Callback<Empty>() {
             @Override
@@ -382,6 +421,10 @@ public final class SimpleService {
     }
 
     private interface RemoveFileReceiveCallback {
+        void onLoadFinished(Integer httpCode);
+    }
+
+    private interface RemoveFolderReceiveCallback {
         void onLoadFinished(Integer httpCode);
     }
 
@@ -513,6 +556,31 @@ public final class SimpleService {
     }
 
     public void removeFolderAndGetStorageData(@NonNull StorageCallback callback, Folder folder) {
-        getStorageData(callback);
+        // Проверка, что пользователь залогинен (в андроид приложении
+        // сохранен токен)
+        // Если не залогинен, то будет выход с ошибкой аутентификации
+        final String token = callback.getToken();
+        if (token == null) {
+            callback.onAuthError(true); // token удалится
+            return;
+        }
+
+        // Удаляем с сервера папку и обновляем модель данных
+        removeFolder(callback, token, folder.getId().intValue(), (httpCode) -> {
+            if (httpCode == null)
+                ;
+            else if (httpCode == 404) {
+                // TODO: удалить объект (и все вложенные папки и файлы) из модели
+                //       (а так же из StorageItems - это кэш названий)
+                // Удаление папки на сервере закончено успешно
+                // конец эстафеты (дальше будет создаваться новая модель)
+                getStorageData(callback);
+            }
+            else if (httpCode == 200) {
+                // Удаление папки на сервере закончено успешно
+                // конец эстафеты (дальше будет создаваться новая модель)
+                getStorageData(callback);
+            }
+        });
     }
 }
