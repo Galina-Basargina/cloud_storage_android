@@ -3,6 +3,7 @@ package ru.cloudstorage.client.rest;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.google.gson.JsonObject;
 
@@ -19,6 +20,7 @@ import retrofit2.http.DELETE;
 import retrofit2.http.GET;
 import retrofit2.http.Header;
 import retrofit2.http.Headers;
+import retrofit2.http.PATCH;
 import retrofit2.http.POST;
 import retrofit2.http.Path;
 import ru.cloudstorage.client.rest.cloudstorage.Auth;
@@ -102,6 +104,14 @@ public final class SimpleService {
 
         @DELETE("/folders/{id}")
         Call<Empty> removeFolder(@Path("id") int id, @Header("Authorization") String authHeader);
+
+        @Headers("Content-Type: application/json")
+        @PATCH("/files/{id}")
+        Call<Empty> patchFile(@Path("id") int id, @Header("Authorization") String authHeader, @Body JsonObject body);
+
+        @Headers("Content-Type: application/json")
+        @PATCH("/folders/{id}")
+        Call<Empty> patchFolder(@Path("id") int id, @Header("Authorization") String authHeader, @Body JsonObject body);
     }
 
     public void login(LoginCallback callback, String login, String password) {
@@ -404,27 +414,124 @@ public final class SimpleService {
         });
     }
 
+    private static void patchFile(
+            StorageCallback callback,
+            String token,
+            int fileId,
+            @Nullable Integer newFolder,
+            @Nullable String newName,
+            PatchFileReceiveCallback finish) {
+        // Создаем экземпляр интерфейса работы с сервером
+        CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
+        // Создаем параметры запроса, которые будут отправлены как json
+        JsonObject paramObject = new JsonObject();
+        if (newFolder != null)
+            paramObject.addProperty("folder", newFolder);
+        if (newName != null && !newName.isEmpty())
+            paramObject.addProperty("original_filename", newName);
+        // Готовим метод к вызову
+        Call<Empty> call = cloud_storage.patchFile(fileId, "Bearer "+token, paramObject);
+        // Ждем ответ
+        // В случае успеха приходит ответ 200 (или 404)
+        // В случае провала - надо удалить сохраненный токен
+        call.enqueue(new Callback<Empty>() {
+            @Override
+            public void onResponse(Call<Empty> call, Response<Empty> response) {
+                if (!response.isSuccessful()) {
+                    if (response.code() == 401)
+                        callback.onAuthError(true); // token удалится
+                    else if (response.code() == 404) {
+                        finish.onLoadFinished(404); // работает не как ошибка - Not Found
+                        return;
+                    }
+                    else
+                        callback.onLoadStorageFailure(); // все остальные случаи
+                } else {
+                    finish.onLoadFinished(200); // OK
+                    return;
+                }
+                finish.onLoadFinished(null);
+            }
+
+            @Override
+            public void onFailure(Call<Empty> call, Throwable t) {
+                // Происходит в случае сетевых ошибок
+                callback.onNetworkError(t.toString()); // token НЕ удалится
+                finish.onLoadFinished(null);
+            }
+        });
+    }
+
+    private static void patchFolder(
+            StorageCallback callback,
+            String token,
+            int fileId,
+            @Nullable Integer newParent,
+            @Nullable String newName,
+            PatchFolderReceiveCallback finish) {
+        // Создаем экземпляр интерфейса работы с сервером
+        CloudStorage cloud_storage = retrofit.create(CloudStorage.class);
+        // Создаем параметры запроса, которые будут отправлены как json
+        JsonObject paramObject = new JsonObject();
+        if (newParent != null)
+            paramObject.addProperty("parent", newParent);
+        if (newName != null && !newName.isEmpty())
+            paramObject.addProperty("name", newName);
+        // Готовим метод к вызову
+        Call<Empty> call = cloud_storage.patchFolder(fileId, "Bearer "+token, paramObject);
+        // Ждем ответ
+        // В случае успеха приходит ответ 200 (или 404)
+        // В случае провала - надо удалить сохраненный токен
+        call.enqueue(new Callback<Empty>() {
+            @Override
+            public void onResponse(Call<Empty> call, Response<Empty> response) {
+                if (!response.isSuccessful()) {
+                    if (response.code() == 401)
+                        callback.onAuthError(true); // token удалится
+                    else if (response.code() == 404) {
+                        finish.onLoadFinished(404); // работает не как ошибка - Not Found
+                        return;
+                    }
+                    else
+                        callback.onLoadStorageFailure(); // все остальные случаи
+                } else {
+                    finish.onLoadFinished(200); // OK
+                    return;
+                }
+                finish.onLoadFinished(null);
+            }
+
+            @Override
+            public void onFailure(Call<Empty> call, Throwable t) {
+                // Происходит в случае сетевых ошибок
+                callback.onNetworkError(t.toString()); // token НЕ удалится
+                finish.onLoadFinished(null);
+            }
+        });
+    }
+
     private interface UserDataReceiveCallback {
         void onLoadFinished(User user);
     }
-
     private interface FolderDataReceiveCallback {
         void onLoadFinished(Folder folder);
     }
-
     private interface FoldersDataReceiveCallback {
         void onLoadFinished(List<Folder> folders);
     }
-
     private interface FilesDataReceiveCallback {
         void onLoadFinished(List<File> files);
     }
-
     private interface RemoveFileReceiveCallback {
         void onLoadFinished(Integer httpCode);
     }
-
     private interface RemoveFolderReceiveCallback {
+        void onLoadFinished(Integer httpCode);
+    }
+    private interface PatchFileReceiveCallback {
+        void onLoadFinished(Integer httpCode);
+    }
+    private interface PatchFolderReceiveCallback {
         void onLoadFinished(Integer httpCode);
     }
 
@@ -578,6 +685,70 @@ public final class SimpleService {
             }
             else if (httpCode == 200) {
                 // Удаление папки на сервере закончено успешно
+                // конец эстафеты (дальше будет создаваться новая модель)
+                getStorageData(callback);
+            }
+        });
+    }
+
+    public void patchFileAndGetStorageData(
+            @NonNull StorageCallback callback,
+            @NonNull File file,
+            @Nullable Integer newFolder,
+            @Nullable String newName) {
+        // Проверка, что пользователь залогинен (в андроид приложении
+        // сохранен токен)
+        // Если не залогинен, то будет выход с ошибкой аутентификации
+        final String token = callback.getToken();
+        if (token == null) {
+            callback.onAuthError(true); // token удалится
+            return;
+        }
+
+        // Переименовываем/перемещаем файл на сервере и обновляем модель данных
+        patchFile(callback, token, file.getId().intValue(), newFolder, newName, (httpCode) -> {
+            if (httpCode == null)
+                ;
+            else if (httpCode == 404) {
+                // TODO: удалить объект из модели (а так же из StorageItems - это кэш названий)
+                // Переименовывание/перемещение файла на сервере закончено успешно
+                // конец эстафеты (дальше будет создаваться новая модель)
+                getStorageData(callback);
+            }
+            else if (httpCode == 200) {
+                // Переименовывание/перемещение файла на сервере закончено успешно
+                // конец эстафеты (дальше будет создаваться новая модель)
+                getStorageData(callback);
+            }
+        });
+    }
+
+    public void patchFolderAndGetStorageData(
+            @NonNull StorageCallback callback,
+            @NonNull Folder folder,
+            @Nullable Integer newParent,
+            @Nullable String newName) {
+        // Проверка, что пользователь залогинен (в андроид приложении
+        // сохранен токен)
+        // Если не залогинен, то будет выход с ошибкой аутентификации
+        final String token = callback.getToken();
+        if (token == null) {
+            callback.onAuthError(true); // token удалится
+            return;
+        }
+
+        // Переименовываем/перемещаем папку на сервере и обновляем модель данных
+        patchFolder(callback, token, folder.getId().intValue(), newParent, newName, (httpCode) -> {
+            if (httpCode == null)
+                ;
+            else if (httpCode == 404) {
+                // TODO: удалить объект из модели (а так же из StorageItems - это кэш названий)
+                // Переименовывание/перемещение папки на сервере закончено успешно
+                // конец эстафеты (дальше будет создаваться новая модель)
+                getStorageData(callback);
+            }
+            else if (httpCode == 200) {
+                // Переименовывание/перемещение папки на сервере закончено успешно
                 // конец эстафеты (дальше будет создаваться новая модель)
                 getStorageData(callback);
             }

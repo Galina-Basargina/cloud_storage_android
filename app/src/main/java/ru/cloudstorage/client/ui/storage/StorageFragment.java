@@ -1,20 +1,20 @@
 package ru.cloudstorage.client.ui.storage;
 
 import android.annotation.SuppressLint;
-import android.content.Context;
 import android.os.Bundle;
+import android.text.InputFilter;
+import android.text.InputType;
 import android.util.Log;
 import android.view.ContextMenu;
 import android.view.GestureDetector;
-import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
+import android.widget.EditText;
 import android.widget.ListView;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
@@ -94,10 +94,10 @@ public class StorageFragment extends Fragment implements
         getActivity().getMenuInflater().inflate(R.menu.context_menu, menu);
         contextMenu = menu;
 
-        contextMenu.findItem(R.id.action_context_delete).setEnabled(!errorInData);
+        contextMenu.findItem(R.id.action_context_delete).setEnabled(!errorInData && false);
         contextMenu.findItem(R.id.action_context_open).setEnabled(!errorInData);
         contextMenu.findItem(R.id.action_context_rename).setEnabled(!errorInData);
-        contextMenu.findItem(R.id.action_context_replace).setEnabled(!errorInData);
+        contextMenu.findItem(R.id.action_context_replace).setEnabled(!errorInData && false);
     }
 
     @Override
@@ -105,7 +105,11 @@ public class StorageFragment extends Fragment implements
         AdapterView.AdapterContextMenuInfo info = (AdapterView.AdapterContextMenuInfo) item.getMenuInfo();
         Log.d("!!!", String.valueOf(info.position));
         if (item.getItemId() == R.id.action_context_delete) {
-            dialogDelete(info.position);
+            dialogRemove(info.position);
+            return true;
+        }
+        else if (item.getItemId() == R.id.action_context_rename) {
+            dialogRename(info.position);
             return true;
         }
         return super.onContextItemSelected(item);
@@ -118,12 +122,35 @@ public class StorageFragment extends Fragment implements
         errorInData = true;
     }
 
-    private void dialogDelete(int position) {
+    private void dialogRemove(int position) {
         new AlertDialog.Builder(getContext())
             .setTitle("Удаление элемента " + data_TO_BE_DELETED.get(position))
             .setMessage("Вы уверены?")
             .setPositiveButton("Удалить", (dialog, which) -> {
-                doDelete(position);
+                doRemove(position);
+            })
+            .setNegativeButton("Отмена", null)
+            .show();
+    }
+
+    private void dialogRename(int position) {
+        File file = data_TO_BE_DELETED.getFileByPosition(position);
+        Folder folder = data_TO_BE_DELETED.getFolderByPosition(position);
+
+        String text = (file != null) ? file.getOriginalFilename() : folder.getName();
+
+        final EditText input = new EditText(getContext());
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        input.setFilters(new InputFilter[] {new InputFilter.LengthFilter(128)});
+        input.setText(text);
+
+        new AlertDialog.Builder(getContext())
+            .setTitle("Переименование " + ((file != null) ? "файла" : "папки"))
+            .setMessage("Введите новое название: ")
+            .setView(input)
+            .setPositiveButton("Переименовать", (dialog, which) -> {
+                if (input.getText().toString().isEmpty()) return; // TODO: ошибка
+                doRename(position, input.getText().toString());
             })
             .setNegativeButton("Отмена", null)
             .show();
@@ -157,7 +184,7 @@ public class StorageFragment extends Fragment implements
                     // см. пример https://github.com/Galina-Basargina/swipe_view_app
                     int position = listView.pointToPosition((int) event.getX(), (int) event.getY());
                     if (position != AdapterView.INVALID_POSITION) {
-                        dialogDelete(position);
+                        dialogRemove(position);
                     }
                 }
                 else {
@@ -197,7 +224,7 @@ public class StorageFragment extends Fragment implements
         //}, 1000);
     }
 
-    private void doDelete(int position) {
+    private void doRemove(int position) {
         File file = data_TO_BE_DELETED.getFileByPosition(position);
         if (file != null) {
             SimpleService.getInstance().removeFileAndGetStorageData(this, file);
@@ -207,6 +234,19 @@ public class StorageFragment extends Fragment implements
         Folder folder = data_TO_BE_DELETED.getFolderByPosition(position);
         if (folder != null) {
             SimpleService.getInstance().removeFolderAndGetStorageData(this, folder);
+        }
+    }
+
+    private void doRename(int position, String newName) {
+        File file = data_TO_BE_DELETED.getFileByPosition(position);
+        if (file != null) {
+            SimpleService.getInstance().patchFileAndGetStorageData(this, file, null, newName);
+            return;
+        }
+
+        Folder folder = data_TO_BE_DELETED.getFolderByPosition(position);
+        if (folder != null) {
+            SimpleService.getInstance().patchFolderAndGetStorageData(this, folder, null, newName);
         }
     }
 
